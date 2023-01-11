@@ -1,7 +1,7 @@
 import joi from 'joi'
 
 export const participants = joi.object({
-    name: joi.string().required(),
+    name: joi.string().required().invalid('Todos'),
 });
 
 export const messagesBody = joi.object({

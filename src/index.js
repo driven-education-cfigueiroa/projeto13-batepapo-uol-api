@@ -71,7 +71,20 @@ app.post('/messages', (req, res) => {
     })
 })
 
-app.get('/messages', (req, res) => { })
+app.get('/messages', (req, res) => {
+    const queryisValid = !!req.query.limit && Number.isInteger(+req.query.limit) && +req.query.limit > 0
+    const headerIsValid = !schema.HeaderUser.validate(req.headers.user).error
+
+    if (!headerIsValid) {
+        return res.sendStatus(401);
+    } else {
+        db.collection('messages').find({ $or: [{ type: 'message' }, { from: req.headers.user }, { to: req.headers.user }] }).toArray()
+            .then(data => {
+                const response = queryisValid ? data.slice(-Number(req.query.limit)) : data;
+                return res.send(response);
+            })
+    }
+})
 
 app.post('/status', (req, res) => {
     const headerIsValid = !schema.HeaderUser.validate(req.headers.user).error
@@ -92,21 +105,23 @@ app.post('/status', (req, res) => {
     })
 })
 
-const autoRemoveTimer = 15000;
+function removeInactive(timer = 15000) {
+    setInterval(() => {
+        const now = dayjs();
+        const tooOld = now.valueOf() - timer;
 
-setInterval(() => {
-    const now = dayjs();
-    const tooOld = now.valueOf() - autoRemoveTimer;
-
-    db.collection('participants').find({ lastStatus: { $lte: tooOld } }).forEach((myDoc) => {
-        db.collection('messages').insertOne({ from: myDoc.name, to: 'Todos', text: 'sai da sala...', type: 'status', time: now.format('HH:mm:ss') })
-            .then(() => {
-                db.collection('participants').deleteOne({ _id: myDoc._id })
-            })
-    })
-}, autoRemoveTimer);
+        db.collection('participants').find({ lastStatus: { $lte: tooOld } }).forEach((myDoc) => {
+            db.collection('messages').insertOne({ from: myDoc.name, to: 'Todos', text: 'sai da sala...', type: 'status', time: now.format('HH:mm:ss') })
+                .then(() => {
+                    db.collection('participants').deleteOne({ _id: myDoc._id })
+                })
+        })
+    }, timer);
+}
 
 app.listen(PORT, () => {
     console.log(chalk.hex('#00684a').bold('MongoDB') + ': ' + chalk.hex('#20c20e')(process.env.DATABASE_URL));
     console.log(chalk.hex('#259dff').bold('Express') + ': ' + chalk.hex('#20c20e')(myIp + ':' + PORT));
 });
+
+removeInactive();
