@@ -26,11 +26,11 @@ mongoClient.connect().then(() => {
 })
 
 app.post('/participants', (req, res) => {
-    const hasError = !!schema.participants.validate(req.body).error;
-    if (hasError) {
+    const bodyIsValid = !schema.participants.validate(req.body).error;
+    if (!bodyIsValid) {
         return res.sendStatus(422);
     }
-    let now = dayjs();
+    const now = dayjs();
     db.collection('participants').insertOne({ ...req.body, lastStatus: now.valueOf() }).then(() => {
         db.collection('messages').insertOne({ from: req.body.name, to: 'Todos', text: 'entra na sala...', type: 'status', time: now.format('HH:mm:ss') }).then(() => {
             return res.sendStatus(201);
@@ -45,11 +45,23 @@ app.get('/participants', (_req, res) => {
 })
 
 app.post('/messages', (req, res) => {
-    const hasError = !!schema.messages.validate(req.body).error;
-    if (hasError) {
+    const bodyIsValid = !schema.messagesBody.validate(req.body).error
+    const headerIsValid = !schema.messagesHeaderUser.validate(req.headers.user).error
+
+    if (!bodyIsValid || !headerIsValid) {
         return res.sendStatus(422);
     }
-    return res.send('Ok');
+
+    const now = dayjs();
+    db.collection('participants').findOne({ name: req.headers.user }).then((result) => {
+        if (result) {
+            db.collection('messages').insertOne({ from: req.headers.user, to: req.body.to, text: req.body.text, type: req.body.type, time: now.format('HH:mm:ss') }).then(() => {
+                return res.sendStatus(201);
+            })
+        } else {
+            return res.sendStatus(422);
+        }
+    })
 })
 
 app.get('/messages', (req, res) => { })
