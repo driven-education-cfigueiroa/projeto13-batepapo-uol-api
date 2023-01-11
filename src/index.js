@@ -78,7 +78,7 @@ app.get('/messages', (req, res) => {
     if (!headerIsValid) {
         return res.sendStatus(401);
     } else {
-        db.collection('messages').find({ $or: [{ type: 'message' }, { from: req.headers.user }, { to: req.headers.user }] }).toArray()
+        db.collection('messages').find({ $or: [{ type: 'message' }, { type: 'status' }, { from: req.headers.user }, { to: req.headers.user }] }).toArray()
             .then(data => {
                 const response = queryisValid ? data.slice(-Number(req.query.limit)) : data;
                 return res.send(response);
