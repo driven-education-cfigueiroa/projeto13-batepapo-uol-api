@@ -10,4 +10,4 @@ export const messagesBody = joi.object({
     type: joi.string().required().valid('message', 'private_message'),
 });
 
-export const messagesHeaderUser = joi.string().required();
+export const HeaderUser = joi.string().required();

@@ -46,7 +46,7 @@ app.get('/participants', (_req, res) => {
 
 app.post('/messages', (req, res) => {
     const bodyIsValid = !schema.messagesBody.validate(req.body).error
-    const headerIsValid = !schema.messagesHeaderUser.validate(req.headers.user).error
+    const headerIsValid = !schema.HeaderUser.validate(req.headers.user).error
 
     if (!bodyIsValid || !headerIsValid) {
         return res.sendStatus(422);
@@ -66,7 +66,24 @@ app.post('/messages', (req, res) => {
 
 app.get('/messages', (req, res) => { })
 
-app.post('/status', (req, res) => { })
+app.post('/status', (req, res) => {
+    const headerIsValid = !schema.HeaderUser.validate(req.headers.user).error
+
+    if (!headerIsValid) {
+        return res.sendStatus(404);
+    }
+
+    const now = dayjs();
+    db.collection('participants').findOne({ name: req.headers.user }).then((result) => {
+        if (result) {
+            db.collection('participants').updateOne({ _id: result._id }, { $set: { lastStatus: now.valueOf() } }).then(() => {
+                return res.sendStatus(200);
+            })
+        } else {
+            return res.sendStatus(404);
+        }
+    })
+})
 
 app.listen(PORT, () => {
     console.log(chalk.hex('#00684a').bold('MongoDB') + ': ' + chalk.hex('#20c20e')(process.env.DATABASE_URL));
