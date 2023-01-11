@@ -92,7 +92,21 @@ app.post('/status', (req, res) => {
     })
 })
 
+const autoRemoveTimer = 15000;
+
+setInterval(() => {
+    const now = dayjs();
+    const tooOld = now.valueOf() - autoRemoveTimer;
+
+    db.collection('participants').find({ lastStatus: { $lte: tooOld } }).forEach((myDoc) => {
+        db.collection('messages').insertOne({ from: myDoc.name, to: 'Todos', text: 'sai da sala...', type: 'status', time: now.format('HH:mm:ss') })
+            .then(() => {
+                db.collection('participants').deleteOne({ _id: myDoc._id })
+            })
+    })
+}, autoRemoveTimer);
+
 app.listen(PORT, () => {
     console.log(chalk.hex('#00684a').bold('MongoDB') + ': ' + chalk.hex('#20c20e')(process.env.DATABASE_URL));
     console.log(chalk.hex('#259dff').bold('Express') + ': ' + chalk.hex('#20c20e')(myIp + ':' + PORT));
-})
+});
