@@ -30,11 +30,18 @@ app.post('/participants', (req, res) => {
     if (!bodyIsValid) {
         return res.sendStatus(422);
     }
-    const now = dayjs();
-    db.collection('participants').insertOne({ ...req.body, lastStatus: now.valueOf() }).then(() => {
-        db.collection('messages').insertOne({ from: req.body.name, to: 'Todos', text: 'entra na sala...', type: 'status', time: now.format('HH:mm:ss') }).then(() => {
-            return res.sendStatus(201);
-        })
+
+    db.collection('participants').findOne({ name: req.body.name }).then((result) => {
+        if (result) {
+            return res.sendStatus(409);
+        } else {
+            const now = dayjs();
+            db.collection('participants').insertOne({ ...req.body, lastStatus: now.valueOf() }).then(() => {
+                db.collection('messages').insertOne({ from: req.body.name, to: 'Todos', text: 'entra na sala...', type: 'status', time: now.format('HH:mm:ss') }).then(() => {
+                    return res.sendStatus(201);
+                })
+            })
+        }
     })
 })
 
