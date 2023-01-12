@@ -21,9 +21,13 @@ const mongoClient = new MongoClient(process.env.DATABASE_URL)
 
 let db;
 
-mongoClient.connect().then(() => {
+try {
+    mongoClient.connect()
     db = mongoClient.db();
-})
+    console.log("Connected!")
+} catch (error) {
+    console.log(error)
+}
 
 app.post('/participants', (req, res) => {
     const bodyIsValid = !schema.participants.validate(req.body).error;
@@ -120,8 +124,9 @@ function removeInactive(timer = 15000) {
 }
 
 app.listen(PORT, () => {
-    console.log(chalk.hex('#00684a').bold('MongoDB') + ': ' + chalk.hex('#20c20e')(process.env.DATABASE_URL));
     console.log(chalk.hex('#259dff').bold('Express') + ': ' + chalk.hex('#20c20e')(myIp + ':' + PORT));
+    console.log(chalk.hex('#00684a').bold('MongoDB') + ': ' + chalk.hex('#20c20e')(process.env.DATABASE_URL));
+    console.log(chalk.hex('#016bf8').bold("Database") + ": " + chalk.hex('#20c20e')(db.namespace))
 });
 
 removeInactive();
