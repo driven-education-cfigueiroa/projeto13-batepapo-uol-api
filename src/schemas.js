@@ -1,13 +1,13 @@
 import joi from 'joi'
 
-export const participants = joi.object({
+export const schParticipants = joi.object({
     name: joi.string().required().invalid('Todos'),
 });
 
-export const messagesBody = joi.object({
+export const schMessagesBody = joi.object({
     to: joi.string().required(),
     text: joi.string().required(),
     type: joi.string().required().valid('message', 'private_message'),
 });
 
-export const HeaderUser = joi.string().required();
+export const schHeaderUser = joi.string().required();

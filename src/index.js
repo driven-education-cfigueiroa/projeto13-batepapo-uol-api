@@ -1,94 +1,90 @@
-
-import os from 'os';
-import dayjs from 'dayjs';
-import chalk from 'chalk';
 import express from 'express';
 import cors from 'cors';
-import * as schema from './schemas.js'
-import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
+import { MongoClient } from 'mongodb';
+import dayjs from 'dayjs';
+import chalk from 'chalk';
+import os from 'os';
+import { schParticipants, schMessagesBody, schHeaderUser } from './schemas.js';
 dotenv.config();
 
 const PORT = 5000;
 const myIp = os.networkInterfaces().eth0[0].address;
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
 const mongoClient = new MongoClient(process.env.DATABASE_URL)
-
 let db;
 
 try {
-    mongoClient.connect()
+    console.log(chalk.yellow("Connecting..."));
+    await mongoClient.connect();
     db = mongoClient.db();
-    console.log("Connected!")
+    app.listen(PORT, () => {
+        console.log(chalk.green("Connected!"));
+        console.log(chalk.hex('#259dff').bold('Express') + ': ' + chalk.hex('#20c20e')(myIp + ':' + PORT));
+        console.log(chalk.hex('#00684a').bold('MongoDB') + ': ' + chalk.hex('#20c20e')(process.env.DATABASE_URL));
+        console.log(chalk.hex('#016bf8').bold("Database") + ": " + chalk.hex('#20c20e')(db.namespace))
+    });
 } catch (error) {
-    console.log(error)
+    console.error(chalk.red("mongoClient.connect() error!"), error);
+} finally {
+    removeInactive();
 }
 
+// endpoints start
 app.post('/participants', async (req, res) => {
     try {
-        const bodyIsValid = !schema.participants.validate(req.body).error;
-        if (!bodyIsValid) {
+        if (!validData(schParticipants, req.body)) {
             return res.sendStatus(422);
         }
-        const result = await db.collection('participants').findOne({ name: req.body.name });
-        if (result) {
+        if (await nameExists(req.body.name)) {
             return res.sendStatus(409);
         } else {
             const now = dayjs();
             await db.collection('participants').insertOne({ ...req.body, lastStatus: now.valueOf() });
-            await db.collection('messages').insertOne({ from: req.body.name, to: 'Todos', text: 'entra na sala...', type: 'status', time: now.format('HH:mm:ss') });
+            await insertMessage(req.body.name, 'Todos', 'entra na sala...', 'status', now.format('HH:mm:ss'));
             return res.sendStatus(201);
         }
     } catch (error) {
-        console.log(error)
+        console.error("post '/participants' error!", error)
         return res.sendStatus(500);
     }
 });
-
 app.get('/participants', async (_req, res) => {
     try {
         const data = await db.collection('participants').find().toArray();
         return res.send(data);
     } catch (error) {
-        console.log(error)
+        console.error("get '/participants' error!", error)
         return res.sendStatus(500);
     }
 })
-
 app.post('/messages', async (req, res) => {
     try {
-        const bodyIsValid = !schema.messagesBody.validate(req.body).error
-        const headerIsValid = !schema.HeaderUser.validate(req.headers.user).error
-
-        if (!bodyIsValid || !headerIsValid) {
+        const anyInvalidData = !validData(schMessagesBody, req.body) || !validData(schHeaderUser, req.headers.user)
+        if (anyInvalidData) {
             return res.sendStatus(422);
         }
-
-        const now = dayjs();
-        const result = await db.collection('participants').findOne({ name: req.headers.user });
-        if (result) {
-            await db.collection('messages').insertOne({ from: req.headers.user, to: req.body.to, text: req.body.text, type: req.body.type, time: now.format('HH:mm:ss') });
+        if (await nameExists(req.headers.user)) {
+            const now = dayjs();
+            await insertMessage(req.headers.user, req.body.to, req.body.text, req.body.type, now.format('HH:mm:ss'));
             return res.sendStatus(201);
         } else {
             return res.sendStatus(422);
         }
     } catch (error) {
-        console.log(error)
+        console.error("post '/messages' error!", error)
         return res.sendStatus(500);
     }
 });
-
 app.get('/messages', async (req, res) => {
     try {
         const queryisValid = !!req.query.limit && Number.isInteger(+req.query.limit) && +req.query.limit > 0
-        const headerIsValid = !schema.HeaderUser.validate(req.headers.user).error
-
-        if (!headerIsValid) {
+        const unauthorizedUser = !validData(schHeaderUser, req.headers.user) || !(await nameExists(req.headers.user))
+        if (unauthorizedUser) {
             return res.sendStatus(401);
         } else {
             const query = { $or: [{ type: 'message' }, { type: 'status' }, { from: req.headers.user }, { to: req.headers.user }] }
@@ -96,32 +92,35 @@ app.get('/messages', async (req, res) => {
             return res.send(data);
         }
     } catch (error) {
-        console.log(error)
+        console.error("get '/messages' error!", error)
         return res.sendStatus(500);
     }
 });
-
 app.post('/status', async (req, res) => {
     try {
-        const headerIsValid = !schema.HeaderUser.validate(req.headers.user).error
-
-        if (!headerIsValid) {
+        if (!validData(schHeaderUser, req.headers.user)) {
             return res.sendStatus(404);
         }
-
-        const now = dayjs();
-        const result = await db.collection('participants').findOne({ name: req.headers.user });
-        if (result) {
-            await db.collection('participants').updateOne({ _id: result._id }, { $set: { lastStatus: now.valueOf() } });
+        const name = await nameExists(req.headers.user);
+        if (name) {
+            const now = dayjs();
+            await db.collection('participants').updateOne({ _id: name._id }, { $set: { lastStatus: now.valueOf() } });
             return res.sendStatus(200);
         } else {
             return res.sendStatus(404);
         }
     } catch (error) {
-        console.log(error)
+        console.error("post '/status' error!", error)
         return res.sendStatus(500);
     }
 });
+// endpoints finish
+
+const validData = (schema, data) => !schema.validate(data).error;
+
+const nameExists = async (name) => await db.collection('participants').findOne({ name });
+
+const insertMessage = async (from, to, text, type, time) => await db.collection('messages').insertOne({ from, to, text, type, time });
 
 async function removeInactive(timer = 15000) {
     setInterval(async () => {
@@ -133,18 +132,10 @@ async function removeInactive(timer = 15000) {
 
             for (const myDoc of myDocs) {
                 await db.collection('participants').deleteOne({ _id: myDoc._id });
-                await db.collection('messages').insertOne({ from: myDoc.name, to: 'Todos', text: 'sai da sala...', type: 'status', time: now.format('HH:mm:ss') });
+                await insertMessage(myDoc.name, 'Todos', 'sai da sala...', 'status', now.format('HH:mm:ss'));
             }
         } catch (error) {
-            console.log(error)
+            console.error("removeInactive() error!", error)
         }
     }, timer);
 }
-
-app.listen(PORT, () => {
-    console.log(chalk.hex('#259dff').bold('Express') + ': ' + chalk.hex('#20c20e')(myIp + ':' + PORT));
-    console.log(chalk.hex('#00684a').bold('MongoDB') + ': ' + chalk.hex('#20c20e')(process.env.DATABASE_URL));
-    console.log(chalk.hex('#016bf8').bold("Database") + ": " + chalk.hex('#20c20e')(db.namespace))
-});
-
-removeInactive();
