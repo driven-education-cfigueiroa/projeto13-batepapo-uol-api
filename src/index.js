@@ -84,20 +84,25 @@ app.post('/messages', async (req, res) => {
 });
 
 
-app.get('/messages', (req, res) => {
-    const queryisValid = !!req.query.limit && Number.isInteger(+req.query.limit) && +req.query.limit > 0
-    const headerIsValid = !schema.HeaderUser.validate(req.headers.user).error
+app.get('/messages', async (req, res) => {
+    try {
+        const queryisValid = !!req.query.limit && Number.isInteger(+req.query.limit) && +req.query.limit > 0
+        const headerIsValid = !schema.HeaderUser.validate(req.headers.user).error
 
-    if (!headerIsValid) {
-        return res.sendStatus(401);
-    } else {
-        db.collection('messages').find({ $or: [{ type: 'message' }, { type: 'status' }, { from: req.headers.user }, { to: req.headers.user }] }).toArray()
-            .then(data => {
-                const response = queryisValid ? data.slice(-Number(req.query.limit)) : data;
-                return res.send(response);
-            })
+        if (!headerIsValid) {
+            return res.sendStatus(401);
+        } else {
+            const query = { $or: [{ type: 'message' }, { type: 'status' }, { from: req.headers.user }, { to: req.headers.user }] }
+            const data = await db.collection('messages').find(query).toArray();
+            const response = queryisValid ? data.slice(-Number(req.query.limit)) : data;
+            return res.send(response);
+        }
+    } catch (error) {
+        console.log(error)
+        return res.sendStatus(500);
     }
-})
+});
+
 
 app.post('/status', (req, res) => {
     const headerIsValid = !schema.HeaderUser.validate(req.headers.user).error
