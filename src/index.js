@@ -60,25 +60,29 @@ app.get('/participants', async (_req, res) => {
     }
 })
 
-app.post('/messages', (req, res) => {
-    const bodyIsValid = !schema.messagesBody.validate(req.body).error
-    const headerIsValid = !schema.HeaderUser.validate(req.headers.user).error
+app.post('/messages', async (req, res) => {
+    try {
+        const bodyIsValid = !schema.messagesBody.validate(req.body).error
+        const headerIsValid = !schema.HeaderUser.validate(req.headers.user).error
 
-    if (!bodyIsValid || !headerIsValid) {
-        return res.sendStatus(422);
-    }
+        if (!bodyIsValid || !headerIsValid) {
+            return res.sendStatus(422);
+        }
 
-    const now = dayjs();
-    db.collection('participants').findOne({ name: req.headers.user }).then((result) => {
+        const now = dayjs();
+        const result = await db.collection('participants').findOne({ name: req.headers.user });
         if (result) {
-            db.collection('messages').insertOne({ from: req.headers.user, to: req.body.to, text: req.body.text, type: req.body.type, time: now.format('HH:mm:ss') }).then(() => {
-                return res.sendStatus(201);
-            })
+            await db.collection('messages').insertOne({ from: req.headers.user, to: req.body.to, text: req.body.text, type: req.body.type, time: now.format('HH:mm:ss') });
+            return res.sendStatus(201);
         } else {
             return res.sendStatus(422);
         }
-    })
-})
+    } catch (error) {
+        console.log(error)
+        return res.sendStatus(500);
+    }
+});
+
 
 app.get('/messages', (req, res) => {
     const queryisValid = !!req.query.limit && Number.isInteger(+req.query.limit) && +req.query.limit > 0
