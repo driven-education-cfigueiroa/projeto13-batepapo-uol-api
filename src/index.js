@@ -92,9 +92,8 @@ app.get('/messages', async (req, res) => {
             return res.sendStatus(401);
         } else {
             const query = { $or: [{ type: 'message' }, { type: 'status' }, { from: req.headers.user }, { to: req.headers.user }] }
-            const data = await db.collection('messages').find(query).toArray();
-            const response = queryisValid ? data.slice(-Number(req.query.limit)) : data;
-            return res.send(response);
+            const data = await db.collection('messages').find(query).limit(queryisValid ? +req.query.limit : Infinity).toArray();
+            return res.send(data);
         }
     } catch (error) {
         console.log(error)
