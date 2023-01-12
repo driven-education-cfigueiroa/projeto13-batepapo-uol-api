@@ -124,18 +124,21 @@ app.post('/status', async (req, res) => {
     }
 });
 
+async function removeInactive(timer = 15000) {
+    setInterval(async () => {
+        try {
+            const now = dayjs();
+            const tooOld = now.valueOf() - timer;
+            const query = { lastStatus: { $lte: tooOld } };
+            const myDocs = await db.collection('participants').find(query).toArray();
 
-function removeInactive(timer = 15000) {
-    setInterval(() => {
-        const now = dayjs();
-        const tooOld = now.valueOf() - timer;
-
-        db.collection('participants').find({ lastStatus: { $lte: tooOld } }).forEach((myDoc) => {
-            db.collection('messages').insertOne({ from: myDoc.name, to: 'Todos', text: 'sai da sala...', type: 'status', time: now.format('HH:mm:ss') })
-                .then(() => {
-                    db.collection('participants').deleteOne({ _id: myDoc._id })
-                })
-        })
+            for (const myDoc of myDocs) {
+                await db.collection('participants').deleteOne({ _id: myDoc._id });
+                await db.collection('messages').insertOne({ from: myDoc.name, to: 'Todos', text: 'sai da sala...', type: 'status', time: now.format('HH:mm:ss') });
+            }
+        } catch (error) {
+            console.log(error)
+        }
     }, timer);
 }
 
