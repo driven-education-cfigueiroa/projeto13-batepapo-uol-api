@@ -29,25 +29,26 @@ try {
     console.log(error)
 }
 
-app.post('/participants', (req, res) => {
-    const bodyIsValid = !schema.participants.validate(req.body).error;
-    if (!bodyIsValid) {
-        return res.sendStatus(422);
-    }
-
-    db.collection('participants').findOne({ name: req.body.name }).then((result) => {
+app.post('/participants', async (req, res) => {
+    try {
+        const bodyIsValid = !schema.participants.validate(req.body).error;
+        if (!bodyIsValid) {
+            return res.sendStatus(422);
+        }
+        const result = await db.collection('participants').findOne({ name: req.body.name });
         if (result) {
             return res.sendStatus(409);
         } else {
             const now = dayjs();
-            db.collection('participants').insertOne({ ...req.body, lastStatus: now.valueOf() }).then(() => {
-                db.collection('messages').insertOne({ from: req.body.name, to: 'Todos', text: 'entra na sala...', type: 'status', time: now.format('HH:mm:ss') }).then(() => {
-                    return res.sendStatus(201);
-                })
-            })
+            await db.collection('participants').insertOne({ ...req.body, lastStatus: now.valueOf() });
+            await db.collection('messages').insertOne({ from: req.body.name, to: 'Todos', text: 'entra na sala...', type: 'status', time: now.format('HH:mm:ss') });
+            return res.sendStatus(201);
         }
-    })
-})
+    } catch (error) {
+        console.log(error)
+        return res.sendStatus(500);
+    }
+});
 
 app.get('/participants', (_req, res) => {
     db.collection('participants').find().toArray().then(data => {
