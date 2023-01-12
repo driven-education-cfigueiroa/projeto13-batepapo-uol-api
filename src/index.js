@@ -50,10 +50,14 @@ app.post('/participants', async (req, res) => {
     }
 });
 
-app.get('/participants', (_req, res) => {
-    db.collection('participants').find().toArray().then(data => {
+app.get('/participants', async (_req, res) => {
+    try {
+        const data = await db.collection('participants').find().toArray();
         return res.send(data);
-    })
+    } catch (error) {
+        console.log(error)
+        return res.sendStatus(500);
+    }
 })
 
 app.post('/messages', (req, res) => {
